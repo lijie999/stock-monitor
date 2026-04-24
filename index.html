@@ -179,7 +179,8 @@
         tr:last-child td { border-bottom: none; }
         tr:hover { background: #1a1f2e; }
         
-        .symbol { color: #4a9eff; font-weight: 600; }
+        .symbol { color: #4a9eff; font-weight: 600; text-decoration: none; }
+        .symbol:hover { text-decoration: underline; }
         .name { color: #8899aa; font-size: 0.75rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
         .price { font-weight: 600; }
         .change { 
@@ -592,7 +593,7 @@
                 const sorted = [...usStocksData].sort((a,b) => b.change - a.change);
                 document.getElementById('bothUsBody').innerHTML = sorted.slice(0, 30).map(stock => `
                     <tr>
-                        <td><span class="symbol">${stock.symbol}</span></td>
+                        <td><a class="symbol" href="https://finance.yahoo.com/quote/${stock.symbol}/chart" target="_blank">${stock.symbol}</a></td>
                         <td class="price">$${stock.price}</td>
                         <td><span class="change ${stock.change > 0 ? 'change-up' : 'change-down'}">${stock.change > 0 ? '+' : ''}${stock.change}%</span></td>
                     </tr>
@@ -602,13 +603,16 @@
             // 更新A股数据
             if (chinaStocksData.length > 0) {
                 document.getElementById('bothCnLimitUp').textContent = chinaStocksData.length;
-                document.getElementById('bothCnBody').innerHTML = chinaStocksData.slice(0, 30).map(stock => `
+                document.getElementById('bothCnBody').innerHTML = chinaStocksData.slice(0, 30).map(stock => {
+                    const prefix = stock.code.startsWith('6') || stock.code.startsWith('9') ? 'sh' : 'sz';
+                    return `
                     <tr>
-                        <td><span class="symbol">${stock.code}</span></td>
+                        <td><a class="symbol" href="https://finance.sina.com.cn/realstock/company/${prefix}${stock.code}/nc.shtml" target="_blank">${stock.code}</a></td>
                         <td><span class="name">${stock.name}</span></td>
                         <td><span class="change change-up">+${stock.change}%</span></td>
                     </tr>
-                `).join('');
+                    `;
+                }).join('');
             }
         }
         
@@ -742,7 +746,7 @@
             const tbody = document.getElementById('usStockBody');
             tbody.innerHTML = data.slice(0, 100).map(stock => `
                 <tr>
-                    <td><span class="symbol">${stock.symbol}</span></td>
+                    <td><a class="symbol" href="https://finance.yahoo.com/quote/${stock.symbol}/chart" target="_blank">${stock.symbol}</a></td>
                     <td><span class="name">${stock.name}</span></td>
                     <td class="price">$${stock.price}</td>
                     <td><span class="change ${stock.change > 0 ? 'change-up' : stock.change < 0 ? 'change-down' : 'change-flat'}">${stock.change > 0 ? '+' : ''}${stock.change}%</span></td>
@@ -839,16 +843,20 @@
         
         function updateChinaTable() {
             const tbody = document.getElementById('chinaStockBody');
-            tbody.innerHTML = displayedChinaStocks.map(stock => `
+            tbody.innerHTML = displayedChinaStocks.map(stock => {
+                // A股代码判断交易所: 6开头上海, 0/3开头深圳
+                const prefix = stock.code.startsWith('6') || stock.code.startsWith('9') ? 'sh' : 'sz';
+                return `
                 <tr>
-                    <td><span class="symbol">${stock.code}</span></td>
+                    <td><a class="symbol" href="https://finance.sina.com.cn/realstock/company/${prefix}${stock.code}/nc.shtml" target="_blank">${stock.code}</a></td>
                     <td><span class="name">${stock.name}</span></td>
                     <td class="price">${stock.price}</td>
                     <td><span class="change change-up">+${stock.change}%</span></td>
                     <td><span class="consecutive">${stock.consecutive > 1 ? stock.consecutive + '连板' : '-'}</span></td>
                     <td>${stock.reason}</td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
         }
         
         function filterChinaStocks() {
