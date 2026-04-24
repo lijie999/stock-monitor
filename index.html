@@ -198,7 +198,7 @@
         <div class="last-update" id="lastUpdate">最后更新: --</div>
     </div>
     
-    <div class="api-key-section" id="apiKeySection">
+    <div class="api-key-section" id="apiKeySection" style="display:none;">
         <h3>⚠️ 需要 API Key</h3>
         <p>Finnhub 免费API Key (每日60次请求)：<a href="https://finnhub.io/register" target="_blank" style="color:#58a6ff">点击获取</a></p>
         <div class="api-key-input">
@@ -320,7 +320,8 @@
         // 去重
         const UNIQUE_SYMBOLS = [...new Set(NASDAQ_100_SYMBOLS)];
         
-        let apiKey = localStorage.getItem('finnhub_api_key') || '';
+        // 预置 Finnhub API Key
+        let apiKey = localStorage.getItem('finnhub_api_key') || 'cvkm3qpr01qtnb8tgt50cvkm3qpr01qtnb8tgt5g';
         let usStocksData = [];
         let chinaStocksData = [];
         let displayedUsStocks = [];
@@ -328,8 +329,15 @@
         
         // 初始化
         document.addEventListener('DOMContentLoaded', () => {
+            // 优先使用本地存储的key，否则使用预置key
+            const savedKey = localStorage.getItem('finnhub_api_key');
+            if (savedKey) {
+                apiKey = savedKey;
+                document.getElementById('apiKeyInput').value = savedKey;
+            }
+            
+            // 如果有key就隐藏输入框并加载数据
             if (apiKey) {
-                document.getElementById('apiKeyInput').value = apiKey;
                 document.getElementById('apiKeySection').style.display = 'none';
                 loadUsStocks();
             }
