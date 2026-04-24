@@ -577,7 +577,7 @@
             } else {
                 document.querySelector('.tab:nth-child(3)').classList.add('active');
                 document.getElementById('both-section').classList.add('active');
-                // 更新双栏数据
+                // 双栏直接使用已加载的数据，不重新请求
                 updateDualColumns();
             }
         }
@@ -670,11 +670,18 @@
             }
         }
         
-        // 加载美股 - 减小批量避免限流
+        // 加载美股 - 优化：不再每批次重绘，只在最后统一渲染
         async function loadUsStocks() {
+            // 如果已有数据，直接显示并返回
+            if (usStocksData.length > 0) {
+                updateUsStats(usStocksData);
+                updateUsTable(usStocksData);
+                return;
+            }
+            
             document.getElementById('usStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">加载中...</td></tr>';
             
-            const batchSize = 5;  // 从10降到5，减少并发
+            const batchSize = 10;  // 恢复10，提高速度
             const allData = [];
             let hasData = false;
             
@@ -706,15 +713,7 @@
                 const results = await Promise.all(promises);
                 const batchData = results.filter(r => r !== null);
                 allData.push(...batchData);
-                if (batchData.length > 0) {
-                    hasData = true;
-                    updateUsStats(allData);
-                    updateUsTable(allData);
-                }
-                // 批次间延迟，避免限流
-                if (i + batchSize < NASDAQ_100.length) {
-                    await new Promise(r => setTimeout(r, 500));
-                }
+                hasData = hasData || batchData.length > 0;
             }
             
             // 即使全部失败也显示空状态
@@ -767,6 +766,13 @@
         
         // A股涨停榜 - 新浪财经数据源
         async function loadChinaStocks() {
+            // 如果已有数据，直接显示并返回
+            if (chinaStocksData.length > 0) {
+                updateChinaStats();
+                updateChinaTable();
+                return;
+            }
+            
             document.getElementById('chinaStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">加载中...</td></tr>';
             
             try {
