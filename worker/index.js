@@ -1,9 +1,10 @@
-const FINNHUB_API_KEY = 'cvkm3qpr01qtnb8tgt50cvkm3qpr01qtnb8tgt5g';
+const FINNHUB_API_KEY='cvkm3qpr01qtnb8tgt50cvkm3qpr01qtnb8tgt5g';
 
 export default {
   async fetch(request) {
     const url = new URL(request.url);
     const symbol = url.searchParams.get('symbol');
+    const source = url.searchParams.get('source') || 'finnhub';
 
     if (!symbol) {
       return new Response(JSON.stringify({ error: 'Missing symbol parameter' }), {
@@ -12,9 +13,21 @@ export default {
     }
 
     try {
-      const apiUrl = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
-      const response = await fetch(apiUrl);
-      const data = await response.text();
+      let apiUrl, response, data;
+
+      if (source === 'yahoo') {
+        // Yahoo Finance API - 需要代理来解决 CORS
+        apiUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+        response = await fetch(apiUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        data = await response.text();
+      } else {
+        // Finnhub 默认
+        apiUrl = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+        response = await fetch(apiUrl);
+        data = await response.text();
+      }
 
       return new Response(data, {
         headers: {
