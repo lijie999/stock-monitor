@@ -652,18 +652,33 @@
             } catch(e) { console.log('Market bar error:', e); }
         }
         
+        // 带超时的 fetch
+        async function fetchWithTimeout(url, ms = 8000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), ms);
+            try {
+                const resp = await fetch(url, { signal: controller.signal });
+                clearTimeout(id);
+                return resp;
+            } catch(e) {
+                clearTimeout(id);
+                throw e;
+            }
+        }
+        
         // 加载美股
         async function loadUsStocks() {
             document.getElementById('usStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">加载中...</td></tr>';
             
             const batchSize = 10;
             const allData = [];
+            let hasData = false;
             
             for (let i = 0; i < NASDAQ_100.length; i += batchSize) {
                 const batch = NASDAQ_100.slice(i, i + batchSize);
                 const promises = batch.map(async (stock) => {
                     try {
-                        const resp = await fetch(`${API_BASE}?symbol=${stock.s}&source=yahoo`);
+                        const resp = await fetchWithTimeout(`${API_BASE}?symbol=${stock.s}&source=yahoo`);
                         const json = await resp.json();
                         const data = json.chart?.result?.[0];
                         if (data) {
@@ -685,13 +700,19 @@
                     } catch { return null; }
                 });
                 const results = await Promise.all(promises);
-                allData.push(...results.filter(r => r !== null));
-                if (allData.length > 0) {
+                const batchData = results.filter(r => r !== null);
+                allData.push(...batchData);
+                if (batchData.length > 0) {
+                    hasData = true;
                     updateUsStats(allData);
                     updateUsTable(allData);
                 }
             }
             
+            // 即使全部失败也显示空状态
+            if (!hasData) {
+                document.getElementById('usStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">数据加载失败，请稍后刷新</td></tr>';
+            }
             usStocksData = allData.sort((a, b) => b.change - a.change);
             displayedUsStocks = [...usStocksData];
             updateUsStats(usStocksData);
@@ -741,10 +762,8 @@
             document.getElementById('chinaStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">加载中...</td></tr>';
             
             try {
-                // 浏览器直连东方财富（无 CORS 问题）
-                const resp = await fetch('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:13,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f18', {
-                    headers: { 'Referer': 'https://quote.eastmoney.com/' }
-                });
+                // 浏览器直连东方财富
+                const resp = await fetchWithTimeout('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:13,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f18', 10000);
                 const text = await resp.text();
                 const json = JSON.parse(text.replace(/^[^({]+/, ''));
                 
