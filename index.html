@@ -615,21 +615,42 @@
         // 加载市场行情栏
         async function loadMarketBar() {
             try {
-                const [btc, eth] = await Promise.all([
-                    fetch(`${API_BASE}?symbol=BTC-USD`).then(r => r.json()),
-                    fetch(`${API_BASE}?symbol=ETH-USD`).then(r => r.json())
-                ]);
+                // 使用 Yahoo Finance 获取加密和指数
+                const symbols = [
+                    {id:'BTC-USD',el:'btc'},
+                    {id:'ETH-USD',el:'eth'},
+                    {id:'^NDX',el:'qqq'},  // Nasdaq 100 指数
+                    {id:'CN00Y',el:'a50'}   // A50指数
+                ];
                 
-                if (btc.c) {
-                    document.getElementById('btcPrice').textContent = '$' + btc.c.toLocaleString();
-                    document.getElementById('btcChange').textContent = (btc.dp > 0 ? '+' : '') + btc.dp.toFixed(2) + '%';
-                    document.getElementById('btcChange').className = btc.dp > 0 ? 'change positive' : 'change negative';
-                }
-                if (eth.c) {
-                    document.getElementById('ethPrice').textContent = '$' + eth.c.toLocaleString();
-                    document.getElementById('ethChange').textContent = (eth.dp > 0 ? '+' : '') + eth.dp.toFixed(2) + '%';
-                    document.getElementById('ethChange').className = eth.dp > 0 ? 'change positive' : 'change negative';
-                }
+                const results = await Promise.all(symbols.map(async (s) => {
+                    try {
+                        const resp = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${s.id}?interval=1d&range=1d`, {
+                            headers: {'User-Agent': 'Mozilla/5.0'}
+                        });
+                        const json = await resp.json();
+                        const data = json.chart?.result?.[0];
+                        if (data) {
+                            const quote = data.meta?.regularMarketPrice;
+                            const prevClose = data.meta?.chartPreviousClose || data.meta?.previousClose;
+                            const change = prevClose ? ((quote - prevClose) / prevClose * 100).toFixed(2) : 0;
+                            return {el: s.el, price: quote, change: parseFloat(change)};
+                        }
+                    } catch(e) {}
+                    return {el: s.el, price: null, change: 0};
+                }));
+                
+                results.forEach(r => {
+                    if (r.price) {
+                        const priceStr = r.el === 'btc' || r.el === 'eth' 
+                            ? '$' + r.price.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0})
+                            : r.price.toFixed(2);
+                        document.getElementById(r.el + 'Price').textContent = priceStr;
+                        const chgEl = document.getElementById(r.el + 'Change');
+                        chgEl.textContent = (r.change > 0 ? '+' : '') + r.change + '%';
+                        chgEl.className = r.change > 0 ? 'change positive' : 'change negative';
+                    }
+                });
             } catch(e) { console.log('Market bar error:', e); }
         }
         
