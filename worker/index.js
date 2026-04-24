@@ -6,7 +6,7 @@ export default {
     const symbol = url.searchParams.get('symbol');
     const source = url.searchParams.get('source') || 'yahoo';
 
-    if (!symbol) {
+    if (source !== 'eastmoney' && !symbol) {
       return new Response(JSON.stringify({ error: 'Missing symbol parameter' }), {
         headers: { 'Content-Type': 'application/json' }
       });

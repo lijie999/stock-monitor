@@ -741,9 +741,10 @@
             document.getElementById('chinaStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">加载中...</td></tr>';
             
             try {
-                // 通过 Worker 代理东方财富（解决 CORS）
-                const eastmoneyUrl = encodeURIComponent('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:13,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f18');
-                const resp = await fetch(`${API_BASE}?source=eastmoney&url=${eastmoneyUrl}`);
+                // 浏览器直连东方财富（无 CORS 问题）
+                const resp = await fetch('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:13,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f18', {
+                    headers: { 'Referer': 'https://quote.eastmoney.com/' }
+                });
                 const text = await resp.text();
                 const json = JSON.parse(text.replace(/^[^({]+/, ''));
                 
