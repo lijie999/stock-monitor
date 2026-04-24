@@ -666,11 +666,11 @@
             }
         }
         
-        // 加载美股
+        // 加载美股 - 减小批量避免限流
         async function loadUsStocks() {
             document.getElementById('usStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">加载中...</td></tr>';
             
-            const batchSize = 10;
+            const batchSize = 5;  // 从10降到5，减少并发
             const allData = [];
             let hasData = false;
             
@@ -678,7 +678,7 @@
                 const batch = NASDAQ_100.slice(i, i + batchSize);
                 const promises = batch.map(async (stock) => {
                     try {
-                        const resp = await fetchWithTimeout(`${API_BASE}?symbol=${stock.s}&source=yahoo`);
+                        const resp = await fetchWithTimeout(`${API_BASE}?symbol=${stock.s}&source=yahoo`, 10000);
                         const json = await resp.json();
                         const data = json.chart?.result?.[0];
                         if (data) {
@@ -706,6 +706,10 @@
                     hasData = true;
                     updateUsStats(allData);
                     updateUsTable(allData);
+                }
+                // 批次间延迟，避免限流
+                if (i + batchSize < NASDAQ_100.length) {
+                    await new Promise(r => setTimeout(r, 500));
                 }
             }
             
@@ -757,29 +761,57 @@
             updateUsTable(displayedUsStocks);
         }
         
-        // 加载A股
+        // A股涨停榜 - 腾讯数据源
         async function loadChinaStocks() {
             document.getElementById('chinaStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">加载中...</td></tr>';
             
             try {
-                // 浏览器直连东方财富
-                const resp = await fetchWithTimeout('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:13,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f18', 10000);
-                const text = await resp.text();
-                const json = JSON.parse(text.replace(/^[^({]+/, ''));
+                // 方案1: 通过Worker代理腾讯数据
+                const resp1 = await fetchWithTimeout(`${API_BASE}?source=tencent&url=https://qt.gtimg.cn/q=s_sh000001,s_sh399001,s_sz399001`, 8000);
+                const text1 = await resp1.text();
                 
-                if (json.data && json.data.diff) {
-                    chinaStocksData = json.data.diff.filter(s => s.f3 >= 9.9).slice(0, 50).map(s => ({
-                        code: s.f12,
-                        name: s.f14,
-                        price: s.f2,
-                        change: s.f3.toFixed(2),
-                        consecutive: 1,
-                        reason: getReason(s.f14)
-                    }));
+                // 腾讯返回的是 v_p1={...} 格式，需要解析
+                const tencentMatch = text1.match(/v_p1="([^"]+)"/);
+                if (tencentMatch) {
+                    const quoteData = JSON.parse(tencentMatch[1]);
+                    if (quoteData && quoteData.data) {
+                        chinaStocksData = Object.values(quoteData.data)
+                            .filter(s => s.zdp >= 9.9)
+                            .slice(0, 50)
+                            .map(s => ({
+                                code: s.code,
+                                name: s.name,
+                                price: s.price,
+                                change: s.zdp.toFixed(2),
+                                consecutive: 1,
+                                reason: getReason(s.name)
+                            }));
+                    }
                 }
-            } catch(e) {
-                // 备用模拟数据
-                chinaStocksData = getMockChinaData();
+            } catch(e1) {
+                console.log('腾讯数据失败，尝试东方财富:', e1.message);
+                
+                try {
+                    // 方案2: 通过Worker代理东方财富
+                    const resp2 = await fetchWithTimeout(`${API_BASE}?source=eastmoney&url=https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:13,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f18`, 8000);
+                    const text2 = await resp2.text();
+                    const json = JSON.parse(text2.replace(/^[^({]+/, ''));
+                    
+                    if (json.data && json.data.diff) {
+                        chinaStocksData = json.data.diff.filter(s => s.f3 >= 9.9).slice(0, 50).map(s => ({
+                            code: s.f12,
+                            name: s.f14,
+                            price: s.f2,
+                            change: s.f3.toFixed(2),
+                            consecutive: 1,
+                            reason: getReason(s.f14)
+                        }));
+                    }
+                } catch(e2) {
+                    console.log('东方财富也失败:', e2.message);
+                    // 备用模拟数据
+                    chinaStocksData = getMockChinaData();
+                }
             }
             
             displayedChinaStocks = [...chinaStocksData];
