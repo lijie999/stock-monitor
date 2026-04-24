@@ -98,6 +98,26 @@
         .section { display: none; }
         .section.active { display: block; }
         
+        /* Dual Layout */
+        .dual-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .dual-left, .dual-right {
+            background: #111827;
+            border: 1px solid #1e2836;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        .dual-header {
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #1e2836;
+        }
+        
         /* Stats Row */
         .stats-row {
             display: grid;
@@ -241,6 +261,7 @@
             .market-bar { padding: 8px 15px; }
             th, td { padding: 6px 8px; font-size: 0.8rem; }
             .name { display: none; }
+            .dual-container { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -290,10 +311,11 @@
     <div class="tabs">
         <div class="tab active" onclick="switchTab('us')">🇺🇸 Nasdaq 100</div>
         <div class="tab" onclick="switchTab('china')">🇨🇳 A股涨停</div>
+        <div class="tab active" onclick="switchTab('both')">📊 双栏对比</div>
     </div>
     
     <div class="content">
-        <div class="section active" id="us-section">
+        <div class="section" id="us-section">
             <div class="stats-row">
                 <div class="stat-card">
                     <div class="label">上涨</div>
@@ -405,6 +427,65 @@
                 </div>
             </div>
         </div>
+        
+        <div class="section active" id="both-section">
+            <div class="dual-container">
+                <div class="dual-left">
+                    <div class="dual-header">🇺🇸 Nasdaq 100</div>
+                    <div class="stats-row" style="margin-bottom:8px;">
+                        <div class="stat-card" style="padding:8px;">
+                            <div class="label">上涨</div>
+                            <div class="value positive" id="bothUsGainers">--</div>
+                        </div>
+                        <div class="stat-card" style="padding:8px;">
+                            <div class="label">下跌</div>
+                            <div class="value negative" id="bothUsLosers">--</div>
+                        </div>
+                    </div>
+                    <div class="table-wrap" style="max-height:500px;overflow-y:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>代码</th>
+                                    <th>价格</th>
+                                    <th>涨跌</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bothUsBody">
+                                <tr><td colspan="3" style="text-align:center;padding:20px;color:#6b7c93;">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="dual-right">
+                    <div class="dual-header">🇨🇳 A股涨停</div>
+                    <div class="stats-row" style="margin-bottom:8px;">
+                        <div class="stat-card" style="padding:8px;">
+                            <div class="label">涨停</div>
+                            <div class="value positive" id="bothCnLimitUp">--</div>
+                        </div>
+                        <div class="stat-card" style="padding:8px;">
+                            <div class="label">市场</div>
+                            <div class="value" id="bothCnMarket">沪深</div>
+                        </div>
+                    </div>
+                    <div class="table-wrap" style="max-height:500px;overflow-y:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>代码</th>
+                                    <th>名称</th>
+                                    <th>涨幅</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bothCnBody">
+                                <tr><td colspan="3" style="text-align:center;padding:20px;color:#6b7c93;">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <div class="footer">
@@ -489,9 +570,45 @@
             if (tab === 'us') {
                 document.querySelector('.tab:nth-child(1)').classList.add('active');
                 document.getElementById('us-section').classList.add('active');
-            } else {
+            } else if (tab === 'china') {
                 document.querySelector('.tab:nth-child(2)').classList.add('active');
                 document.getElementById('china-section').classList.add('active');
+            } else {
+                document.querySelector('.tab:nth-child(3)').classList.add('active');
+                document.getElementById('both-section').classList.add('active');
+                // 更新双栏数据
+                updateDualColumns();
+            }
+        }
+        
+        function updateDualColumns() {
+            // 更新美股数据
+            if (usStocksData.length > 0) {
+                const gainers = usStocksData.filter(s => s.change > 0).length;
+                const losers = usStocksData.filter(s => s.change < 0).length;
+                document.getElementById('bothUsGainers').textContent = gainers;
+                document.getElementById('bothUsLosers').textContent = losers;
+                
+                const sorted = [...usStocksData].sort((a,b) => b.change - a.change);
+                document.getElementById('bothUsBody').innerHTML = sorted.slice(0, 30).map(stock => `
+                    <tr>
+                        <td><span class="symbol">${stock.symbol}</span></td>
+                        <td class="price">$${stock.price}</td>
+                        <td><span class="change ${stock.change > 0 ? 'change-up' : 'change-down'}">${stock.change > 0 ? '+' : ''}${stock.change}%</span></td>
+                    </tr>
+                `).join('');
+            }
+            
+            // 更新A股数据
+            if (chinaStocksData.length > 0) {
+                document.getElementById('bothCnLimitUp').textContent = chinaStocksData.length;
+                document.getElementById('bothCnBody').innerHTML = chinaStocksData.slice(0, 30).map(stock => `
+                    <tr>
+                        <td><span class="symbol">${stock.code}</span></td>
+                        <td><span class="name">${stock.name}</span></td>
+                        <td><span class="change change-up">+${stock.change}%</span></td>
+                    </tr>
+                `).join('');
             }
         }
         
