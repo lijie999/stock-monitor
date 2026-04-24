@@ -549,18 +549,24 @@
         
         function updateMarketStatus() {
             const now = new Date();
-            const utcHour = now.getUTCHours();
-            const utcMinute = now.getUTCMinutes();
-            // 美股: EST 9:30-16:00 = UTC 14:30-21:00
-            const estHour = (utcHour + 20) % 24;
-            const isUsOpen = estHour >= 14 && estHour < 21;
+            // 使用本地时间（浏览器时区）
+            const localHour = now.getHours();
+            const localMinute = now.getMinutes();
+            const localDay = now.getDay(); // 0=周日, 6=周六
+
+            // 美股: EST 9:30-16:00 (对应北京时间 21:30-次日5:00，夏令时)
+            // 简化为: 北京时间 21:00-次日4:59 视为美股交易中
+            const isUsOpen = (localHour >= 21 || localHour < 5) && localDay !== 0 && localDay !== 6;
             document.getElementById('usStatus').textContent = isUsOpen ? '美股 交易中' : '美股 已收盘';
             document.getElementById('usStatus').className = 'market-status ' + (isUsOpen ? 'status-open' : 'status-closed');
-            
-            // A股: 北京时间 9:30-15:00
-            const bjHour = (utcHour + 8) % 24;
-            const isCnOpen = (bjHour === 9 && utcMinute >= 30) || (bjHour >= 10 && bjHour < 11) || 
-                            (bjHour === 11 && utcMinute < 30) || (bjHour >= 13 && bjHour < 15);
+
+            // A股: 北京时间 9:30-11:30, 13:00-15:00，周末休市
+            const isCnOpen = localDay !== 0 && localDay !== 6 && (
+                (localHour === 9 && localMinute >= 30) || 
+                (localHour >= 10 && localHour < 11) || 
+                (localHour === 11 && localMinute < 30) || 
+                (localHour >= 13 && localHour < 15)
+            );
             document.getElementById('chinaStatus').textContent = isCnOpen ? 'A股 交易中' : 'A股 已收盘';
             document.getElementById('chinaStatus').className = 'market-status ' + (isCnOpen ? 'status-open' : 'status-closed');
         }
