@@ -663,17 +663,22 @@
                 const batch = NASDAQ_100.slice(i, i + batchSize);
                 const promises = batch.map(async (stock) => {
                     try {
-                        const resp = await fetch(`${API_BASE}?symbol=${stock.s}`);
-                        const data = await resp.json();
-                        if (data.c && data.c > 0) {
-                            const change = ((data.c - data.pc) / data.pc * 100).toFixed(2);
+                        const resp = await fetch(`${API_BASE}?symbol=${stock.s}&source=yahoo`);
+                        const json = await resp.json();
+                        const data = json.chart?.result?.[0];
+                        if (data) {
+                            const quote = data.meta?.regularMarketPrice;
+                            const prevClose = data.meta?.chartPreviousClose || data.meta?.previousClose;
+                            const change = prevClose ? ((quote - prevClose) / prevClose * 100).toFixed(2) : 0;
+                            const high = data.meta?.regularMarketDayHigh?.toFixed(2) || '--';
+                            const low = data.meta?.regularMarketDayLow?.toFixed(2) || '--';
                             return {
                                 symbol: stock.s,
                                 name: stock.n,
-                                price: data.c.toFixed(2),
+                                price: quote?.toFixed(2) || '--',
                                 change: parseFloat(change),
-                                high: data.h?.toFixed(2) || '--',
-                                low: data.l?.toFixed(2) || '--'
+                                high: high,
+                                low: low
                             };
                         }
                         return null;
@@ -681,7 +686,6 @@
                 });
                 const results = await Promise.all(promises);
                 allData.push(...results.filter(r => r !== null));
-                // 更新显示
                 if (allData.length > 0) {
                     updateUsStats(allData);
                     updateUsTable(allData);
@@ -737,10 +741,9 @@
             document.getElementById('chinaStockBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#6b7c93;">加载中...</td></tr>';
             
             try {
-                // 东方财富涨停板
-                const resp = await fetch('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:13,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f18', {
-                    headers: { 'Referer': 'https://quote.eastmoney.com/' }
-                });
+                // 通过 Worker 代理东方财富（解决 CORS）
+                const eastmoneyUrl = encodeURIComponent('https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:13,m:1+t:2,m:1+t:23&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f18');
+                const resp = await fetch(`${API_BASE}?source=eastmoney&url=${eastmoneyUrl}`);
                 const text = await resp.text();
                 const json = JSON.parse(text.replace(/^[^({]+/, ''));
                 
